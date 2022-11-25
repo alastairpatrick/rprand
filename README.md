@@ -15,10 +15,11 @@ improving entropy per sample. The resulting checksums are copied into the random
 controller.
 
 When a CPU core requires a random number, it removes one from the random number pool, waiting only if a random number
-is not yet available in the pool. The default pool size if 8, allowing 256 random bits to be acquired at once without
+is not yet available in the pool. The default pool size is 8, allowing 256 random bits to be acquired at once without
 busy waiting.
 
 Because DMA channels are a valuable resource, if the pool size is reconfigured to be one, only one DMA channel is
 needed.
 
-If ROSC frequency was 16MHz, it would generate 10,000 32-bit random numbers per second.
+If ROSC frequency was 16MHz (it varies by how it is configured, particular device and temperature), it would generate
+about 10,000 32-bit random numbers per second.

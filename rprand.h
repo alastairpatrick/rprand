@@ -1,6 +1,8 @@
 #ifndef _RPRAND_H_
 #define _RPRAND_H_
 
+#include <stdint.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif  // __cplusplus
@@ -11,8 +13,8 @@ extern "C" {
 void rprand_maximize_rosc();
 
 // Causes random numbers to be calculated and asynchronously added to the random number pool.
-// Must be called before generating random numbers and after changing the system clock or ROSC
-// frequency. One might also call it periodically to compensate from changes in ROSC frequency.
+// Must be called before requesting random numbers and after changing the system clock or ROSC
+// frequency. Should also be called to account for impact of core temperature on ROSC frequency.
 // Pass 0 as sample_freq_hz to calculate a good sampling frequency based on the measured ROSC
 // frequency.
 void rprand_init(int sample_freq_hz);

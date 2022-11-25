@@ -1,6 +1,3 @@
-#include <memory.h>
-#include <stdio.h>
-
 #include "hardware/dma.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/rosc.h"
@@ -25,14 +22,22 @@ static volatile uint32_t g_secondary_pool[POOL_SIZE];
 static volatile int g_pool_idx;
 
 void rprand_maximize_rosc() {
+  assert(rosc_hw->status & ROSC_STATUS_ENABLED_BITS);
+
   rosc_hw->ctrl = (ROSC_CTRL_ENABLE_VALUE_ENABLE << ROSC_CTRL_ENABLE_LSB) | (ROSC_CTRL_FREQ_RANGE_VALUE_HIGH << ROSC_CTRL_FREQ_RANGE_LSB);
   rosc_hw->freqa = (ROSC_FREQA_PASSWD_VALUE_PASS << ROSC_FREQA_PASSWD_LSB) | 0xFFFF;
   rosc_hw->freqb = (ROSC_FREQB_PASSWD_VALUE_PASS << ROSC_FREQB_PASSWD_LSB) | 0xFFFF;
+
+  while(!(rosc_hw->status & ROSC_STATUS_STABLE_BITS)) {
+    tight_loop_contents();
+  }
 }
 
 void rprand_init(int sample_freq_hz) {
   static uint32_t dummy;
   dma_channel_config c;
+
+  assert(rosc_hw->status & ROSC_STATUS_ENABLED_BITS);
 
   if (g_dma_timer < 0) {
     g_spin_lock = spin_lock_instance(next_striped_spin_lock_num());
@@ -40,7 +45,8 @@ void rprand_init(int sample_freq_hz) {
   }
 
   if (sample_freq_hz <= 0) {
-    // Sampling RANDOMBIT at 1/16th of ROSC seems to eliminate most of the correlation between consecutive samples.
+    // Experimentally, sampling RANDOMBIT at about 1/16th of ROSC seems about right to sample as fast as possible
+    // while maximizing entropy per sample.
     sample_freq_hz = frequency_count_khz(CLOCKS_FC0_SRC_VALUE_ROSC_CLKSRC) * 1000 / 16;
     assert(sample_freq_hz >= 0);
   }
@@ -56,7 +62,7 @@ void rprand_init(int sample_freq_hz) {
       g_store_dma_channel = dma_claim_unused_channel(true);
     }
 
-    // DMA shannel samples RANDOMBITS several times with a delay between samples.
+    // DMA channel samples RANDOMBIT several times with a delay between samples.
     c = dma_channel_get_default_config(g_sample_dma_channel);
     channel_config_set_read_increment(&c, false);
     channel_config_set_write_increment(&c, false);
@@ -87,7 +93,7 @@ uint32_t rprand_get_32() {
   uint32_t result, save;
   bool done = false;
 
-  for (;;) {
+  do {
     if (RPRAND_POOL_SIZE_BITS == 0) {
       dma_channel_wait_for_finish_blocking(g_sample_dma_channel);
     } else {
@@ -114,9 +120,9 @@ uint32_t rprand_get_32() {
     }
 
     spin_unlock(g_spin_lock, save);
+  } while (!done);
 
-    if (done) return result;
-  }
+  return result;
 }
 
 uint64_t rprand_get_64() {
